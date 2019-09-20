@@ -76,8 +76,40 @@ _watch() {
 	fi
 }
 
-# TODO accept numbers for relative ep change
 _set() {
+	id=$1
+	arg=$2
+
+	if [[ $arg =~ ^[+-]?[0-9]+$ ]]; then
+		_set_number "$id" "$arg"
+	else
+		_set_pattern "$id" "$arg"
+	fi
+}
+
+_set_number() {
+	id=$1
+	number=$2
+
+	data=$(grep "^$id:" "$data_file")
+	series_dir=$(cut -d: -f2 <<< "$data")
+	next=$(cut -d: -f3 <<< "$data")
+
+	if [[ $number =~ ^\+ ]]; then
+		number=${number:1}
+		matching=$(find "$series_dir" "${formats[@]}" | sort | grep -A "$number" "$next" | tail -1)
+	elif [[ $number =~ ^- ]]; then
+		number=${number:1}
+		matching=$(find "$series_dir" "${formats[@]}" | sort | grep -B "$number" "$next" | head -1)
+	else
+		matching=$(find "$series_dir" "${formats[@]}" | sort | head -n "$number" | tail -1)
+	fi
+
+	_del "$id"
+	_add "$id" "$series_dir" "$matching"
+}
+
+_set_pattern() {
 	id=$1
 	pattern=$2
 
