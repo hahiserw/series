@@ -141,8 +141,14 @@ _list() {
 	series_dir=$(cut -d: -f2 <<< "$data")
 	next=$(cut -d: -f3 <<< "$data")
 
+	list=$(find "$series_dir" "${formats[@]}" | sort)
+
 	echo "Up next"
-	find "$series_dir" "${formats[@]}" | sort | grep --color=always -C1 "$next"
+	if [[ -z $next ]]; then
+		head -1 <<< "$list"
+	else
+		grep --color=always -C1 "$next" <<< "$list"
+	fi
 }
 
 _list_all() {
