@@ -2,7 +2,7 @@
 
 # id:series_dir:last_watched
 data_file="$HOME/.series"
-formats=(-iname '*.mkv' -o -iname '*.avi')
+formats=(-iname '*.mkv' -o -iname '*.avi' -o -iname '*.mp4')
 player=mpv
 
 touch "$data_file"
@@ -95,14 +95,16 @@ _set_number() {
 	series_dir=$(cut -d: -f2 <<< "$data")
 	next=$(cut -d: -f3 <<< "$data")
 
+	list=$(find "$series_dir" "${formats[@]}" | sort)
+
 	if [[ $number =~ ^\+ ]]; then
 		number=${number:1}
-		matching=$(find "$series_dir" "${formats[@]}" | sort | grep -A "$number" "$next" | tail -1)
+		matching=$(grep -A "$number" "$next" <<< "$list" | tail -1)
 	elif [[ $number =~ ^- ]]; then
 		number=${number:1}
-		matching=$(find "$series_dir" "${formats[@]}" | sort | grep -B "$number" "$next" | head -1)
+		matching=$(grep -B "$number" "$next" <<< "$list" | head -1)
 	else
-		matching=$(find "$series_dir" "${formats[@]}" | sort | head -n "$number" | tail -1)
+		matching=$(head -n "$number" <<< "$list" | tail -1)
 	fi
 
 	_del "$id"
