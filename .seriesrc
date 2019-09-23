@@ -1,0 +1,5 @@
+# extensions for find
+formats=(-iname '*.mkv' -o -iname '*.avi' -o -iname '*.mp4')
+
+# player
+player=(mpv --fs)
