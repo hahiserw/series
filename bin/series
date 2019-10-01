@@ -4,109 +4,90 @@ formats=
 player=
 source "$HOME/.seriesrc"
 # id:series_dir:next_to_watch
-data_file="$HOME/.series"
+data_file="$HOME/.series-ng"
 
 touch "$data_file"
 
 
 help() {
 	cat << EOH
-	$0 series_id [add|set|del|ls]
+	$0 series_dir [add|set|del|ls]
 EOH
 	exit 1
 }
 
 _add() {
-	id=$1
+	series_dir=$1
+	next=$2
 
-	if grep -qs "^$id:" "$data_file"; then
-		echo "Series with given id already exist"
-		exit 2
+	if ! grep -qs "^$series_dir:" "$data_file"; then
+		echo "$series_dir:$next" >> "$data_file"
 	fi
-
-	series_dir=$2
-	series_dir=$(readlink -f "$series_dir")
-
-	if [[ -z $series_dir ]]; then
-		echo "Enter correct path"
-		exit 3
-	fi
-
-	next=$3
-
-	echo "$id:$series_dir:$next" >> "$data_file"
 }
 
 _del() {
-	id=$1
+	series_dir=$1
 
-	data=$(grep "^$id:" "$data_file")
-	if [[ -z $data ]]; then
-		echo "Series with given id doesn't exist"
-		exit 2
-	fi
-
-	if grep -qs "^$id:" "$data_file"; then
-		new_data=$(grep -v "^$id:" "$data_file")
+	if grep -qs "^$series_dir:" "$data_file"; then
+		new_data=$(grep -v "^$series_dir:" "$data_file")
 		echo "$new_data" > "$data_file"
-	else
-		echo "Series with given id doesn't exist"
-		exit 2
 	fi
 }
 
 _watch() {
-	id=$1
-	data=$(grep "^$id:" "$data_file")
+	series_dir=$1
 
-	if [[ -z $data ]]; then
-		echo "Series with given id doesn't exist"
-		exit 2
-	fi
-
-	series_dir=$(cut -d: -f2 <<< "$data")
-	next=$(cut -d: -f3 <<< "$data")
+	data=$(grep "^$series_dir:" "$data_file")
 
 	list=$(find "$series_dir" "${formats[@]}" | sort)
 
-	if [[ -z $next ]]; then
+	if [[ -z $data ]]; then
+		# first from the list
 		next=$(head -1 <<< "$list")
+	else
+		# next from the record
+		next=$(cut -d: -f2 <<< "$data")
 	fi
 
-	# update record when player exits without an error
 	if "${player[@]}" "$next"; then
 		another=$(grep -A1 "$next" <<< "$list" | tail -1)
-		_del "$id"
-		_add "$id" "$series_dir" "$another"
+
+		_del "$series_dir"
+
+		# if last ep skip this
+		if [[ $next != $(tail -1 <<< "$list") ]]; then
+			_add "$series_dir" "$another"
+		else
+			echo "Last episode reached; deleting series entry"
+		fi
 	else
 		echo "Not updating series record"
 	fi
 }
 
 _set() {
-	id=$1
+	series_dir=$1
 	arg=$2
 
-	data=$(grep "^$id:" "$data_file")
+	data=$(grep "^$series_dir:" "$data_file")
 	if [[ -z $data ]]; then
-		echo "Series with given id doesn't exist"
+		echo "Series with given series_dir doesn't exist"
 		exit 2
 	fi
 
 	if [[ $arg =~ ^[+-]?[0-9]+$ ]]; then
-		_set_number "$id" "$arg"
+		_set_number "$series_dir" "$arg"
 	else
-		_set_pattern "$id" "$arg"
+		_set_pattern "$series_dir" "$arg"
 	fi
 }
 
 _set_number() {
-	id=$1
+	series_dir=$1
 	number=$2
 
-	data=$(grep "^$id:" "$data_file")
-	series_dir=$(cut -d: -f2 <<< "$data")
-	next=$(cut -d: -f3 <<< "$data")
+	data=$(grep "^$series_dir:" "$data_file")
+	next=$(cut -d: -f2 <<< "$data")
 
 	list=$(find "$series_dir" "${formats[@]}" | sort)
 
@@ -120,16 +101,17 @@ _set_number() {
 		matching=$(head -n "$number" <<< "$list" | tail -1)
 	fi
 
-	_del "$id"
-	_add "$id" "$series_dir" "$matching"
+	_del "$series_dir"
+	_add "$series_dir" "$matching"
+	echo "Up next"
+	echo "$matching"
 }
 
 _set_pattern() {
-	id=$1
+	series_dir=$1
 	pattern=$2
 
-	data=$(grep "^$id:" "$data_file")
-	series_dir=$(cut -d: -f2 <<< "$data")
+	data=$(grep "^$series_dir:" "$data_file")
 
 	matching=$(find "$series_dir" "${formats[@]}" | grep -i "$pattern")
 
@@ -139,8 +121,10 @@ _set_pattern() {
 		records=$(wc -l <<< "$matching")
 
 		if [[ $records -eq 1 ]] ; then
-			_del "$id"
-			_add "$id" "$series_dir" "$matching"
+			_del "$series_dir"
+			_add "$series_dir" "$matching"
+			echo "Up next:"
+			echo "$matching"
 		else
 			echo "Too many matching files:"
 			echo "$matching"
@@ -149,61 +133,66 @@ _set_pattern() {
 }
 
 _list() {
-	id=$1
-	data=$(grep "^$id:" "$data_file")
+	series_dir=$1
+	records=$2
+
+	data=$(grep "^$series_dir:" "$data_file")
+
 	if [[ -z $data ]]; then
 		echo "Series with given id doesn't exist"
 		exit 2
 	fi
 
-	series_dir=$(cut -d: -f2 <<< "$data")
-	next=$(cut -d: -f3 <<< "$data")
+	next=$(cut -d: -f2 <<< "$data")
 
 	list=$(find "$series_dir" "${formats[@]}" | sort)
 
 	echo "Up next"
 	if [[ -z $next ]]; then
-		head -1 <<< "$list"
+		head "-$records" <<< "$list"
 	else
-		grep --color=always -C1 "$next" <<< "$list"
+		grep --color=always "-C$records" "$next" <<< "$list"
 	fi
 }
 
 _list_all() {
-	echo "    Id  Up next"
+	echo -e "Series directory\nUp next\n"
 	while read line; do
-		id=$(cut -d: -f1 <<< "$line")
-		next=$(cut -d: -f3 <<< "$line")
-		printf "%6s  %s\n" "$id" "$next"
+		cut -d: -f1 <<< "$line"
+		cut -d: -f2 <<< "$line"
+		echo
 	done < "$data_file"
 }
 
-
-id=$1
+series_dir=$1
+if [[ -z $series_dir ]]; then
+	_list_all
+	exit 0
+fi
+series_dir=$(readlink -f "$series_dir")
+if ! [[ -d $series_dir ]]; then
+	echo "Wrong directory"
+	exit 2
+fi
 option=$2
 
 case $option in
-	add)
-		series_dir=$3
-		_add "$id" "$series_dir"
+	'')
+		_watch "$series_dir"
 		;;
-	del|delete)
-		_del "$id"
+	add)
+		_add "$series_dir" ""
+		;;
+	del)
+		_del "$series_dir"
 		;;
 	set)
 		pattern=$3
-		_set "$id" "$pattern"
+		_set "$series_dir" "$pattern"
 		;;
 	ls|list)
-		_list "$id"
-		;;
-	'')
-		if [[ -n $id ]]; then
-			_watch "$id"
-		else
-			# help
-			_list_all
-		fi
+		records=${3:-1}
+		_list "$series_dir" "$records"
 		;;
 	*)
 		help
