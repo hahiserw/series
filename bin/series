@@ -3,15 +3,18 @@
 formats=
 player=
 source "$HOME/.seriesrc"
-# id:series_dir:next_to_watch
+# series_dir:next_to_watch
 data_file="$HOME/.series-ng"
 
 touch "$data_file"
 
 
-help() {
+_help() {
 	cat << EOH
-	$0 series_dir [add|set|del|ls]
+	$0 series_dir [add|del]
+	$0 series_dir set {+|-|}number
+	$0 series_dir set pattern
+	$0 series_dir ls [number]
 EOH
 	exit 1
 }
@@ -195,6 +198,6 @@ case $option in
 		_list "$series_dir" "$records"
 		;;
 	*)
-		help
+		_help
 		;;
 esac
