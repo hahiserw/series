@@ -74,7 +74,7 @@ _set() {
 
 	data=$(grep "^$series_dir:" "$data_file")
 	if [[ -z $data ]]; then
-		echo "Series with given series_dir doesn't exist"
+		echo "There is no series entry with given path"
 		exit 2
 	fi
 
@@ -142,7 +142,7 @@ _list() {
 	data=$(grep "^$series_dir:" "$data_file")
 
 	if [[ -z $data ]]; then
-		echo "Series with given id doesn't exist"
+		echo "There is no series entry with given path"
 		exit 2
 	fi
 
